@@ -1,0 +1,605 @@
+using namespace std;
+
+#include "myudp.h"
+
+#include <vector>
+
+#include<iostream>
+
+#include "/home/ayush/Desktop/wait.h"
+
+#include<stdio.h>
+
+#include<stdlib.h>
+
+#include <QCoreApplication>
+
+#include "opencv2/highgui/highgui.hpp"
+
+#include "opencv2/core/core.hpp"
+
+#include "opencv2/opencv.hpp"
+
+#include <math.h>
+
+
+
+/******************************IMAGE BUOY**************************************/
+
+
+
+double image(){
+
+        cv::VideoCapture cap(0);
+
+        cv::Mat frame;
+
+        int i=0;
+
+        double slope=0.0000;
+
+
+
+       do{
+
+            i++;
+
+
+           double glx=320;
+
+           double gly=480;
+
+           int hl,sl,vl;
+
+           int hu,su,vu;
+
+           hl=170;hu=180;sl=0;
+
+           su=200;vl=50;vu=250;
+
+
+           /*hl= ui->horizontalSlider->value();
+
+           sl= ui->horizontalSlider_2->value();
+
+           vl= ui->horizontalSlider_3->value();
+
+           ui->label_3->setNum(hl);
+
+           ui->label_4->setNum(sl);
+
+           ui->label_5->setNum(vl);
+
+
+           hu= ui->horizontalSlider_4->value();
+
+           su= ui->horizontalSlider_5->value();
+
+           vu= ui->horizontalSlider_6->value();
+
+          ui->label_15->setNum(hu);
+
+           ui->label_16->setNum(su);
+
+           ui->label_17->setNum(vu);*/
+
+
+           //double areaval = ui->horizontalSlider_7->value();
+
+
+            cap >> frame;
+
+            //Mat TrackerIm(frame.size(),frame.type(),Scalar(0,0,0));
+
+
+            cv::Mat frame2;
+
+
+            cv::cvtColor(frame, frame2, CV_BGR2HSV);
+
+            cv::blur(frame2,frame2,cv::Size(3,3));
+
+
+            cv::Mat ThreshIm;//(frame.size(),CV_8UC1);
+
+
+            cv::inRange(frame2,cv::Scalar(hl,sl,vl),cv::Scalar(hu,su,vu),ThreshIm);
+
+
+            cv::blur(ThreshIm,ThreshIm,cv::Size(3,3));
+
+            cv::equalizeHist(ThreshIm,ThreshIm);
+
+            cv::Mat element= cv::Mat();
+
+            //cv::erode(ThreshIm,ThreshIm,element);
+
+            cv::dilate(ThreshIm,ThreshIm,element);
+
+
+
+           cv::Moments m= moments(ThreshIm);
+
+
+
+            double moment10 = m.m10;
+
+            double moment01 = m.m01;
+
+            double area = m.m00;
+
+            //double mud20= m.mu20/m.m00;
+
+            //double mud11=m.mu11/m.m00;
+
+            //double mud02=m.mu02/m.m00;
+
+
+            //if(area>5000){
+
+
+                double posX = moment10/area;
+
+                double posY = moment01/area;
+
+                //double slope=0.0000;
+
+                //ui->label_20->setNum(posY-gly);
+
+                //ui->label_21->setNum(posX-glx);
+
+               // double ort= (0.5*atan(2*mud11/(mud20-mud02)));
+
+               // ui->label_21->setNum(ort*57.3000);
+
+
+                if(glx!=posX){
+
+                double sl=((posY-gly)/(posX-glx));
+
+               // ui->label_22->setNum(abs(posY-gly)/abs(posX-glx));
+
+                slope=atan(sl)*57.30000;}
+
+        //}
+
+
+
+               /*if(posX>=0 && posY>=0)
+
+               {
+
+                   cv::circle(TrackerIm,Point(posX,posY),3,Scalar(0,255,0),3);
+
+                  // cv::line(TrackerIm,Point(320,480),Point(posX,posY),Scalar(120,120,200));
+
+               }
+
+
+             ui->label_12->setNum(posX);
+
+             ui->label_13->setNum(posY);
+
+             ui->label_14->setNum(slope);*/
+
+                //cv::waitKey(30);
+
+                cv::namedWindow("1");
+
+                cv::namedWindow("2");
+
+                cv::imshow("1",frame);
+
+                cv::imshow("2",ThreshIm);
+
+                cv::waitKey(20);
+
+
+           }while(i<100);
+
+            return slope;
+
+}
+
+
+
+/*************************************************************************************************************************/
+
+
+
+
+
+
+
+
+
+
+/*****************PID CODE**************************************************************************************************/
+
+class PID{
+
+
+    double water_guard;
+
+    double proportional_gain;
+
+    double integral_gain;
+
+    double derivative_gain;
+
+    double prev_error;
+
+    double int_error;
+
+    double control;
+
+
+public:
+
+    PID(){
+
+        //std::cout<<"Hey\n";
+
+        prev_error = 0;
+
+        int_error = 0;
+
+        water_guard=1;
+
+        proportional_gain=1;
+
+        integral_gain=2;
+
+        derivative_gain=2;
+
+        prev_error=12;
+
+        control=0;
+
+    }
+
+    void pid_update(PID pid, double curr_error, double dt);
+
+    double der_ret(){return derivative_gain;}
+
+
+
+};
+
+
+/*
+
+typedef struct {
+
+    double water_guard;
+
+    double proportional_gain;
+
+    double integral_gain;
+
+    double derivative_gain;
+
+    double prev_error;
+
+    double int_error;
+
+    double control;
+
+} PID;*/
+
+
+/*void pid_zeroize(PID* pid)
+
+{
+
+    // set prev and integrated error to zero
+
+    pid->prev_error = 0;
+
+    pid->int_error = 0;
+
+}*/
+
+
+void PID::pid_update(PID pid, double curr_error, double dt)
+
+{
+
+    double diff;
+
+    double p_term;
+
+    double i_term;
+
+    double d_term;
+
+
+    // integration with windup guarding
+
+    pid.int_error += (curr_error * dt);
+
+    if (pid.int_error < -(pid.water_guard))
+
+        pid.int_error = -(pid.water_guard);
+
+    else if (pid.int_error > pid.water_guard)
+
+        pid.int_error = pid.water_guard;
+
+
+    // differentiation
+
+    diff = ((curr_error - pid.prev_error) / dt);
+
+
+    // scaling
+
+    p_term = (pid.proportional_gain * curr_error);
+
+    i_term = (pid.integral_gain     * pid.int_error);
+
+    d_term = (pid.derivative_gain   * diff);
+
+
+    // printing the values
+
+    cout<<"\nP Term: "<<p_term;
+
+    cout<<"\nI Term: "<<i_term;
+
+    cout<<"\nD Term: "<<d_term;
+
+    //cout<<12;
+
+
+    // summation of terms
+
+    pid.control = p_term + i_term + d_term;
+
+
+    // save current error as previous error for next iteration
+
+    pid.prev_error = curr_error;
+
+}
+
+
+/*void pid_init(PID * pid){
+
+    pid->prev_error = 0;
+
+    pid->int_error = 0;
+
+    pid->water_guard=1;
+
+    pid->proportional_gain=1;
+
+    pid->integral_gain=2;
+
+    pid->derivative_gain=2;
+
+    pid->prev_error=12;
+
+    pid->control=0;
+
+}*/
+
+
+
+/******************************************************************************/
+
+
+/**************UDP SOCKET********************************/
+
+
+
+
+
+double pid_error=0;
+
+double dummy;
+
+
+
+MyUDP::MyUDP(QObject *parent) :
+
+    QObject(parent)
+
+{
+
+
+    socket = new QUdpSocket(this);
+
+
+    socket->bind(QHostAddress("192.168.6.220"), 1234);
+
+
+    connect(socket, SIGNAL(readyRead()), this, SLOT(readyRead()));
+
+
+}
+
+
+void MyUDP::HelloUDP()
+
+{
+
+    //QByteArray Data;
+
+    //Data.append("Hello from UDP");
+
+
+
+   // socket->writeDatagram(Data, QHostAddress("192.168.0.140"), 1234);
+
+}
+
+
+void MyUDP::readyRead()
+
+{
+
+    //for(int n=0;n<50000;n++);
+
+    QByteArray buffer;
+
+    buffer.resize(socket->pendingDatagramSize());
+
+
+    QHostAddress sender;
+
+    quint16 senderPort;
+
+
+
+
+    socket->readDatagram(buffer.data(), buffer.size(),
+
+                         &sender, &senderPort);
+
+
+    //qDebug() << "Message from: " << sender.toString();
+
+    //qDebug() << "Message port: " << senderPort;
+
+
+    //delay(2000);
+
+
+
+    int count=0;
+
+    char arr[120];
+
+    int  j=0;
+
+//cout<<buffer.size()<<"\n";
+
+    for(int i=0;i<buffer.size();i++)
+
+    {
+
+        if(buffer.at(i)==','){count++;continue;}
+
+        if(count==14)
+
+        {
+
+            while(buffer.at(i+1)!=',')
+
+            {
+
+             arr[j]=buffer.at(i-1);
+
+             i++;
+
+             j++;
+
+            }
+
+
+            break;
+
+        }
+
+    }
+
+    double to_send;
+
+    char check[5];
+
+    sscanf(arr,"%s%lf",check,&to_send);
+
+    //cout<<"\n"<<to_send;
+
+    if(to_send==0)
+
+        pid_error=dummy;
+
+    else
+
+   { pid_error=to_send;
+
+    dummy=to_send;
+
+    }
+
+
+    QCoreApplication::exit();
+
+
+       /*for(int k=2;k<j;k++){
+
+            cout<<arr[k];
+
+
+        }
+
+       cout<<"\n";*/
+
+
+
+    //qDebug() << "Message: "<<i<<"  " << buffer.at(i);
+
+    //qDebug() << "Message: " << buffer;
+
+
+
+}
+
+
+
+/******************************************************************/
+
+
+int main(int argc, char *argv[])
+
+{
+
+
+    while(1)
+
+    {
+
+       QCoreApplication a(argc, argv);
+
+
+    //std::cout<<"Hey!\n";
+
+    MyUDP client;
+
+    //cout<<"1";
+
+    //PID * pid;
+
+    //cout<<"Boo";
+
+
+
+    //client.HelloUDP();
+
+   int ac=a.exec();
+
+   //std::cout<<"Hey!\n";
+
+   std::cout<<"\nUDP Reading: "<<pid_error;
+
+   wait(0.1);
+
+   double ret_angle=image();
+
+   cout<<"\nRet Ang: "<<ret_angle;
+
+   PID pid;
+
+   //cout<<"\n ::"<<pid->der_ret();
+
+   pid.pid_update(pid,pid_error-ret_angle,1);
+
+
+
+    }
+
+    return 0;
+
+}

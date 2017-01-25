@@ -1,0 +1,6 @@
+#ifndef ENHANCE_H
+#define ENHANCE_H
+void Erosion(int,void*);
+void Dilation(int,void*);
+void Enhance(Mat);
+#endif
